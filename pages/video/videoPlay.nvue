@@ -1,0 +1,234 @@
+<template>
+	<view class="page">
+		<swiper class="swiper" :circular="circular" :vertical="true" @change="onSwiperChange">
+			<swiper-item v-for="item in videoList" :key="item.id">
+				<video class="video" :id="item.id" :ref="item.id" :src="item.src" :controls="false" :loop="true"
+				 :show-center-play-btn="false"></video>
+				<image class="place_holder_img" :src="base_url(item.img)" v-show="!item.isPlay" mode="widthFix"></image>
+				<text class="title">{{item.title}}</text>
+			</swiper-item>
+		</swiper>
+	</view>
+</template>
+<script>
+	export default {
+		data() {
+			return {
+				circular: true,
+				videoList: [{
+						id: "video0",
+						src: "uploads/video/5da031f407de2.mp4",
+						img: "",
+						isPlay: false,
+						title: ""
+					},
+					{
+						id: "video1",
+						src: "",
+						img: "",
+						isPlay: false,
+						title: ""
+					},
+					{
+						id: "video2",
+						src: "",
+						img: "",
+						isPlay: false,
+						title: ""
+					}
+				],
+			}
+		},
+		computed: {
+			videoDataList() {
+				return this.$store.state.videoList;
+			}
+		},
+		onLoad(e) {
+			console.log(e.index);
+			this._videoDataIndex = e.index;
+		},
+		onReady() {
+			this.init();
+			this.getData();
+		},
+		methods: {
+			init() {
+				this._videoIndex = 0;
+				this._videoContextList = [];
+				for (var i = 0; i < this.videoDataList.length; i++) {
+					this._videoContextList.push(uni.createVideoContext('video' + i, this));
+				}
+
+			},
+			getData(e) {
+				setTimeout(() => {
+					this.updateVideo(true);
+				}, 200)
+			},
+			onSwiperChange(e) {
+				console.log(e);
+				let currentIndex = e.detail.current;
+				if (currentIndex === this._videoIndex) {
+					return;
+				}
+
+				let isNext = false;
+				if (currentIndex === 0 && this._videoIndex === this.videoList.length - 1) {
+					isNext = true;
+				} else if (currentIndex === this.videoList.length - 1 && this._videoIndex === 0) {
+					isNext = false;
+				} else if (currentIndex > this._videoIndex) {
+					isNext = true;
+				}
+
+				if (isNext) {
+					this._videoDataIndex++;
+				} else {
+					this._videoDataIndex--;
+				}
+
+				if (this._videoDataIndex < 0) {
+					uni.showToast({
+						title: '上滑'
+					});
+					this._videoDataIndex = this.videoDataList.length - 1;
+
+				} else if (this._videoDataIndex >= this.videoDataList.length) {
+					uni.showToast({
+						title: '下滑'
+					});
+					this._videoDataIndex = 0;
+
+
+				}
+
+				this.circular = (this._videoDataIndex != 0);
+
+				if (this._videoIndex >= 0) {
+					this._videoContextList[this._videoIndex].pause();
+					this._videoContextList[this._videoIndex].seek(0);
+				}
+
+				this._videoIndex = currentIndex;
+
+				setTimeout(() => {
+					this.updateVideo(isNext);
+				}, 200);
+			},
+			getNextIndex(isNext) {
+				let index = this._videoIndex + (isNext ? 1 : -1);
+				if (index < 0) {
+					return this.videoList.length - 1;
+				} else if (index >= this.videoList.length) {
+					return 0;
+				}
+				return index;
+			},
+			getNextDataIndex(isNext) {
+				let index = this._videoDataIndex + (isNext ? 1 : -1);
+				if (index < 0) {
+					return this.videoDataList.length - 1;
+				} else if (index >= this.videoDataList.length) {
+					return 0;
+				}
+				return index;
+			},
+			updateVideo(isNext) {
+				console.log(this.baseurl(this.videoDataList[this._videoDataIndex]));
+				this.$set(this.videoList[this._videoIndex], 'src', this.baseurl(this.videoDataList[this._videoDataIndex]));
+				this.$set(this.videoList[this._videoIndex], 'img', this.videoDataList[this._videoDataIndex].img);
+				this.$set(this.videoList[this._videoIndex], 'title', this.videoDataList[this._videoDataIndex].title);
+				if (isNext) {
+					this.$set(this.videoList[this.getNextIndex(isNext)], 'src', this.baseurl(this.videoDataList[this.getNextDataIndex(
+						isNext)]));
+					this.$set(this.videoList[this.getNextIndex(isNext)], 'img', this.videoDataList[this.getNextDataIndex(isNext)].img);
+					this.$set(this.videoList[this.getNextIndex(isNext)], 'title', this.videoDataList[this.getNextDataIndex(isNext)].title);
+				}
+
+				setTimeout(() => {
+					this.$set(this.videoList[this._videoIndex], 'isPlay', true);
+					this._videoContextList[this._videoIndex].play();
+				}, 200);
+				console.log("v:" + this._videoIndex + " d:" +
+					this._videoDataIndex + "; next v:" + this.getNextIndex(isNext) + " next d:" + this.getNextDataIndex(isNext));
+			},
+			base_url(url) {
+				if(url==undefined){
+					return;
+				}
+				var index = url.indexOf("http");
+				if (index == 0) {
+					console.log(url);
+					return url;
+
+				}
+				console.log(this.$store.state.baseUrl + url);
+				return this.$store.state.baseUrl + url;
+
+			},
+			baseurl(video) {
+
+				if (video == undefined) {
+					return "";
+				}
+				var url = video.url;
+				var index = url.indexOf("http");
+				if (index == 0) {
+					console.log(url);
+					return url;
+
+				}
+				console.log(this.$store.state.baseUrl + url);
+				return this.$store.state.baseUrl + url;
+
+			},
+		}
+	}
+</script>
+
+<style>
+	/* #ifndef APP-PLUS */
+	page {
+		width: 100%;
+		min-height: 100%;
+		display: flex;
+	}
+
+	/* #endif */
+
+	.page {
+		flex: 1;
+		width: 750rpx;
+	}
+
+	.swiper {
+		flex: 1;
+		background-color: #007AFF;
+	}
+
+	.swiper-item {
+		flex: 1;
+		justify-content: center;
+	}
+
+	.video {
+		flex: 1;
+		/* #ifndef APP-PLUS */
+		width: 100%;
+		/* #endif */
+	}
+
+	.place_holder_img {
+		position: absolute !important;
+		width: 100%;
+		z-index: 1;
+	}
+
+	.title {
+		position: absolute;
+		bottom: 30upx;
+		left: 10px;
+		color: #FFFFFF;
+	}
+</style>

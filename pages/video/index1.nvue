@@ -1,0 +1,969 @@
+<template>
+	<div class="page">
+		<list show-scrollbar="false" ref="b1" @scroll="scrollIng" @touchstart="touchstart" @touchend="touchend" @swipe="swipe">
+			<cell v-for="(item, idx) in videoList" :key="idx">
+				<view ref="item" class="video-box" :style="{
+				'height':sysheight,
+				'width':'752upx'}">
+					<chunlei-video class="video" @tap="clickVideo" :src="item.src" :height="height" width="752upx" :play="item.flag"
+					 :initialTime="item.initialTime" @pause="pauseVideo" :poster="item.poster">
+					</chunlei-video>
+					<cover-view class="cover-view-top">
+						<image src="../../static/img/close.png" class="top-icon left-close" @tap="back"></image>
+						<image src="../../static/img/search_white.png" class="top-icon right-search" @tap="seach"></image>
+						<image src="../../static/img/more.png" class="top-icon right-more" mode="aspectFill" @tap="tapShare"></image>
+					</cover-view>
+					<cover-view class="cover-view-left title">
+						<!-- #ifdef APP-PLUS-NVUE-->
+						<text class="left-text">{{item.content}}</text>
+						<!-- #endif -->
+					</cover-view>
+					<cover-view class="cover-view-left name">
+						<text class="left-text">@{{item.name}}</text>
+					</cover-view>
+					<cover-view class="cover-view-left music">
+						<cover-image src="../../static/icon/music.png" class="img-music"></cover-image><text class="left-music"> @{{item.name}}创作的原声</text>
+					</cover-view>
+					<!-- 下方评论区域 -->
+					<cover-view class="cover-view-comment" @tap="tapMsg(true)">
+						<cover-image src="../../static/icon/pen.png" class="img-pen"></cover-image>
+						<text class="left-comment">写评论...</text>
+
+					</cover-view>
+					<cover-view class="cover-view-right">
+						<cover-image :src="item.avater" class="avater img" @click.stop="tapAvater(item.uid)"></cover-image>
+						<text v-if="!item.follow" class="right-follow" @tap="tabFollow(item.uid)">+</text>
+						<cover-image v-if="item.follow" src="/static/icon/follow.png" class="right-follow-img"></cover-image>
+						<cover-image :src="item.check?'../../static/img/skr_active.png':'../../static/img/skr.png'" class="img-left"
+						 @click.stop="tapLove"></cover-image>
+						<text class="right-text">{{item.skr_count}}</text>
+						<cover-image src="../../static/img/comment.png" class="comment-img" @click.stop="tapMsg"></cover-image>
+						<text class="right-text">{{item.comment_count}}</text>
+						<cover-image src="../../static/img/share.png" class="img-left" @click.stop="tapShare"></cover-image>
+					</cover-view>
+
+				</view>
+
+			</cell>
+			<cell ref="more" class="loadmore">
+				{{isMore?'正在加载更多...':'暂无更多数据'}}
+			</cell>
+		</list>
+		<view class="heart" :style="{top:(this.sysheight/2)+'px'}" v-if="doubleClick">
+			<image ref="heart" class="skr-img hide" v-if="doubleClick" src="/static/img/skr_active.png" mode="widthFix"></image>
+		</view>
+
+	</div>
+</template>
+<script>
+	import chunleiVideo from '../../components/chunlei-video/chunlei-video.vue'
+	import api from '../../api/index.js';
+	const dom = weex.requireModule('dom')
+	export default {
+		components: {
+			chunleiVideo
+		},
+		data() {
+			return {
+				sysheight: 0,
+				videoList: [
+
+				],
+				start: 0,
+				end: 0,
+				height: '667px',
+				index: 0,
+				width: '',
+				oldIndex: 0,
+				doubleClick: false,
+				animationData: "",
+				scrollTop: 0,
+				oldScrollTop: 0,
+				startY: 0,
+				endY: 0,
+				isDispach: false,
+				action: "",
+				isMore: true,
+				page: 1,
+				type: 'hot'
+			}
+		},
+		created() {
+			//#ifdef APP-PLUS
+			//设置竖屏
+			plus.screen.lockOrientation("portrait-primary")
+			// 保持屏幕常亮
+			uni.setKeepScreenOn({
+				keepScreenOn: true
+			});
+			//#endif
+			this.sysheight = uni.getSystemInfoSync().windowHeight
+			this.height = `${this.sysheight}px`
+			let width = uni.getSystemInfoSync().windowWidth
+			this.width = `${width}px`
+
+		},
+		onLoad(e) {
+			if (e.index != undefined) {
+				console.log(e.index);
+				this.index = parseInt(e.index);
+				this.start = parseInt(e.start);
+				this.end = parseInt(e.end);
+				this.page = parseInt(e.page)
+				this.type = e.type;
+			}
+
+		},
+		onBackPress() {
+			//退出当前界面停止视频播放，防止内存泄漏
+			this.videoList[this.index].flag = false;
+		},
+		onUnload() {
+			console.log("onUnload()")
+			this.videoList[this.index].flag = false;
+		},
+		mounted() {
+			this.pushVideoList();
+		},
+		onShow() {
+			this.videoList[this.index].flag = true;
+		},
+		onHide() {
+			this.videoList[this.index].flag = false;
+		},
+		methods: {
+			back() {
+				uni.navigateBack({
+					delta: 1
+				})
+			},
+			seach() {
+
+				uni.navigateTo({
+					url: '/pages/index/seacher/seacher',
+					success: res => {},
+					fail: () => {},
+					complete: () => {}
+				});
+			},
+			swipe(e) {},
+			touchstart(e) {
+				this.startY = e.changedTouches[0].screenY;
+			},
+			touchend(e) {
+				console.log("touchend", this.start, this.end, this.index);
+				if (this.isDispach) {
+					let el = this.$refs.item[this.index].ref;
+					dom.scrollToElement(el, {
+						offset: 0
+					});
+					return;
+				}
+				this.isDispach = true;
+				if (e == undefined) {
+
+					setTimeout(() => {
+						this.isDispach = false;
+					}, 300)
+
+					this.changeCurrent(this.index);
+					let el = this.$refs.item[this.index].ref;
+					dom.scrollToElement(el, {
+						offset: 0
+					});
+					return;
+				}
+				this.endY = e.changedTouches[0].screenY;
+				if (this.startY - 80 > this.endY) {
+
+					if (this.index < this.videoList.length - 1) {
+						this.index++
+					}
+					this.action = "top";
+					//上滑
+					console.log("上滑");
+				} else if (this.startY + 80 < this.endY) {
+					if (this.index > 0) {
+						this.index--
+					}
+					this.action = "down";
+					// 下滑
+					console.log("下滑");
+				} else {
+					this.action = "click";
+					// 点击事件
+					console.log("点击");
+					let el = this.$refs.item[this.index].ref;
+					dom.scrollToElement(el, {
+						offset: 0
+					});
+					setTimeout(() => {
+						this.isDispach = false;
+					}, 300)
+					return;
+				}
+				this.changeCurrent(this.index);
+				this.$nextTick(function() {
+					let el = this.$refs.item[this.index].ref;
+					dom.scrollToElement(el, {
+						offset: 0,
+
+					});
+				})
+
+				setTimeout(() => {
+					this.isDispach = false;
+				}, 300)
+
+
+
+				if (this.index > this.videoList.length - 2) {
+					//this.getData();
+				}
+			},
+			//切换视频
+			changeCurrent(index) {
+				console.log("changeCurrent", this.start, this.end, this.index);
+				this.index = index;
+				for (let item of this.videoList) {
+					item.flag = false
+				}
+				this.videoPlay(this.index)
+				if (this.index == this.videoList.length - 1) {
+					this.loadNext();
+				}
+				if (this.index == 0) {
+					this.loadPre();
+				}
+			},
+			//格式化链接地址
+			formatUrl(url) {
+				if (url == undefined) {
+					return;
+				}
+				var index = url.indexOf("http");
+				if (index == 0) {
+
+					return url;
+
+				}
+				return this.$store.state.baseUrl + url;
+			},
+			loadPre() {
+				console.log("loadPre()", this.start, this.end, this.index);
+				var tempList = this.$store.state.videoList;
+				if (this.action == 'top' || this.action == 'click') {
+					return;
+				}
+				//6 0 5 10
+				if (this.start > 5 && this.start != 0) {
+					//3 9 5
+					var laststart = this.start;
+					this.start = this.start - 10 < 0 ? 0 : this.start - 10;
+					this.index = laststart - this.start;
+					this.end = laststart + 5 > tempList.length ? tempList.length : laststart + 5;
+					console.log("start>0", this.start, this.end, this.index);
+				} else if (this.start <= 5 && this.start != 0) {
+					//5 0 4 5
+					var laststart = this.start;
+					this.start = this.start - 5 < 0 ? 0 : this.start - 5;
+					this.index = laststart - this.start;
+					this.end = this.start + 5 > tempList.length ? tempList.length : this.start + 5;
+					console.log("start<0", this.start, this.end, this.index);
+				} else {
+					uni.showToast({
+						title: '上面没有更多视频了哦',
+						icon: 'none'
+					});
+					return;
+				}
+
+				tempList = tempList.slice(this.start, this.end);
+				let videoGroup = []
+
+				for (let item of tempList) {
+					videoGroup.push({
+						id: item.id,
+						uid:item.uid,
+						src: this.formatUrl(item.url),
+						name: item.name,
+						content: item.title,
+						flag: false,
+						check: item.skr == '1',
+						follow: item.follow != '0',
+						collection:item.collection!='0',
+						avater: this.formatUrl(item.head_img),
+						initialTime: 0,
+						skr_count: item.skr_count,
+						comment_count: item.comment_count
+					})
+
+				}
+				this.videoList = videoGroup;
+
+				this.$nextTick(function() {
+
+					let el = this.$refs.item[this.index].ref;
+					dom.scrollToElement(el, {
+						offset: 0,
+						animated: false
+					});
+					this.changeCurrent(this.index);
+				})
+
+			},
+			loadNext() {
+
+				var tempList = this.$store.state.videoList;
+				console.log("loadNext()", this.start, this.end, this.index, tempList.length);
+				if (this.action == 'down' || this.action == 'click') {
+					return;
+				} //0 8 7
+				if (this.end - 5 >= 0 && this.end != tempList.length) {
+					//0 4 5 
+					//5 15 9
+					var laststart = this.start;
+					this.start = this.end - 5; //3
+					this.end = this.end + 5 > tempList.length ? tempList.length : this.end + 5; //13
+					this.index = 4;
+					console.log("this.end-5>0", this.start, this.end, this.index);
+				} else {
+					if (this.isMore) {
+						this.loadMore();
+					} else {
+						uni.showToast({
+							title: '下面没有更多视频了哦',
+							icon: 'none'
+						});
+					}
+
+
+					return;
+				}
+
+
+				tempList = tempList.slice(this.start, this.end);
+				let videoGroup = []
+
+				for (let item of tempList) {
+					videoGroup.push({
+						id: item.id,
+						uid:item.uid,
+						src: this.formatUrl(item.url),
+						name: item.name,
+						content: item.title,
+						flag: false,
+						check: item.skr == '1',
+						follow: item.follow != '0',
+						collection:item.collection!='0',
+						avater: this.formatUrl(item.head_img),
+						initialTime: 0,
+						skr_count: item.skr_count,
+						comment_count: item.comment_count
+					})
+ 
+				}
+				this.videoList = videoGroup;
+
+				this.$nextTick(function() {
+
+					let el = this.$refs.item[this.index].ref;
+					dom.scrollToElement(el, {
+						offset: 0,
+						animated: false
+					});
+					this.changeCurrent(this.index);
+				})
+			},
+			loadMore() {
+				console.log("video_index loadMore", this.type, this.page);
+				api.videoList({
+					'type': this.type,
+					'page': ++this.page
+				}).then(res => {
+					console.log(res.data);
+					if (res.data.code == 1) {
+						this.isMore = false;
+					}
+					this.$store.dispatch("addVideoList", res.data.data);
+					setTimeout(() => {
+						this.loadNext();
+					}, 300)
+
+				}).catch(res => {
+
+					// 失败进行的操作
+				})
+			},
+			pushVideoList() {
+				let promise = new Promise((resolve, reject) => {
+					var tempList = this.$store.state.videoList;
+					tempList = tempList.slice(this.start, this.end);
+					let videoGroup = []
+					var index = 0;
+					for (let item of tempList) {
+						videoGroup.push({
+							id: item.id,
+							uid:item.uid,
+							src: this.formatUrl(item.url),
+							name: item.name,
+							content: item.title,
+							flag: false,
+							check: item.skr == '1',
+							follow: item.follow != '0',
+							collection:item.collection!='0',
+							avater: this.formatUrl(item.head_img),
+							initialTime: 0,
+							skr_count: item.skr_count,
+							comment_count: item.comment_count
+						})
+						index++;
+					}
+					this.videoList = videoGroup;
+					this.$nextTick(() => {
+						let more = this.$refs.more.ref;
+						dom.scrollToElement(more, {
+							offset: 0,
+							animated: false
+						});
+						let el = this.$refs.item[this.index].ref;
+						console.log(this.$refs.item[this.index]);
+						this.videoPlay(this.index)
+						dom.scrollToElement(el, {
+							offset: 0,
+							animated: false
+						});
+
+					})
+					resolve()
+				})
+				return promise
+			},
+			tabFollow(uid) {
+				if (this.user == null) {
+					uni.showToast({
+						title: '请先登录',
+						icon: 'none'
+					});
+					uni.navigateTo({
+						url: '/pages/login/login'
+					})
+					return;
+				}
+				api.followChange({
+					type: 'add',
+					uid: uid
+				}).then((res) => {
+					//提示关注成功
+					if (res.data.code == 1) {
+						uni.showToast({
+							title: res.data.msg,
+							icon: 'none'
+						});
+						return;
+					}
+					uni.showToast({
+						title: '关注成功'
+					});
+					//遍历被关注用户的所有视频，修改为关注状态
+					let i = 0;
+					for (let item of this.videoList) {
+						if(uid==item.uid){
+							this.videoList[i].follow=true;
+						}
+						i++;
+					}
+				});
+			},
+			//点击赞
+			tapLove() {
+				if (this.user == null) {
+					uni.showToast({
+						title: '请先登录',
+						icon: 'none'
+					});
+					uni.navigateTo({
+						url: '/pages/login/login'
+					})
+					return;
+				}
+				//点赞视频
+				api.videoLike({
+					vid: this.videoList[this.index].id,
+					type: this.videoList[this.index].check ? "0" : "1",
+				}).then(res => {
+					if (res.data.code == 1) {
+						uni.showToast({
+							title: '请先登录',
+							icon: 'none'
+						});
+					} else {
+						this.videoList[this.index].check = !this.videoList[this.index].check
+						if (!this.videoList[this.index].check) {
+							this.videoList[this.index].skr_count = this.videoList[this.index].skr_count - 1;
+						} else {
+							this.videoList[this.index].skr_count = this.videoList[this.index].skr_count + 1;
+						}
+					}
+				}).catch(res => {
+
+					// 失败进行的操作
+				})
+
+				this.videoList = [...this.videoList]
+			},
+			//暂停视频事件
+			pauseVideo(val) {
+				if (typeof this.videoList[this.index].initialTime != 'undefined') this.videoList[this.index].initialTime = val
+			},
+			//点击头像事件
+			tapAvater(uid) {
+				console.log("tapAvater",uid);
+				uni.navigateTo({
+					url:'/pages/index/user/other?uid='+uid
+				})
+			},
+			//点击评论事件
+			tapMsg(input) {
+				if (this.user == null) {
+					uni.showToast({
+						title: '请先登录',
+						icon: 'none'
+					});
+					uni.navigateTo({
+						url: '/pages/login/login'
+					})
+					return;
+				}
+				console.log(input);
+				if (input == undefined) {
+					input == false;
+				}
+				console.log("tapMsg");
+				var drawer = uni.getSubNVueById('drawer');
+				this.loadCommentData()
+				uni.$emit('drawer_show', {
+					vid: this.videoList[this.index].id,
+					showInput: input
+				})
+				drawer.show('slide-in-bottom', 200, () => {
+
+				});
+
+			},
+			tapShare() {
+				uni.$emit('setShareVideo',this.videoList[this.index]);
+				console.log("setShareVideo",this.videoList[this.index]);
+				uni.getSubNVueById('forward').show('slide-in-bottom', 200, () => {});
+			},
+			//获取评论列表
+			loadCommentData(page) {
+				page = page == undefined ? 1 : page;
+				api.commentList({
+					vid: this.videoList[this.index].id,
+					page
+				}).then((res) => {
+					if (res.data.code == 1) {
+						uni.$emit('setCommentData', {
+							data: []
+						})
+					} else {
+						uni.$emit('setCommentData', {
+							data: res.data.data
+						})
+					}
+				}).catch((res) => {
+					uni.showToast({
+						title: res.msg
+					});
+				})
+			},
+			//视频播放事件
+			videoPlay(index) {
+				let promise = new Promise((resolve, reject) => {
+					resolve()
+				})
+				promise.then(res => {
+					console.log("play:" + index, (this.start + this.index));
+					this.videoList[index].flag = !this.videoList[index].flag
+				})
+				/* uni.showToast({
+					title: "浏览视频:" + (this.start+this.index),
+					icon: 'none'
+				}); */
+				//浏览视频
+				api.videoView({
+					id: this.videoList[this.index].id,
+				}).then(res => {
+
+				}).catch(res => {
+					uni.stopPullDownRefresh();
+					// 失败进行的操作
+				})
+			},
+			//点击视频事件
+			clickVideo(e) {
+				//判断是否是双击
+				if (!this.click) {
+					this.click = true;
+					this.time = setTimeout(() => {
+						this.click = false;
+						this.videoList[this.index].flag = !this.videoList[this.index].flag
+					}, 300)
+					return;
+				}
+				clearTimeout(this.time)
+				this.doubleClick_(e);
+
+
+			},
+
+			//双击
+			doubleClick_(e) {
+
+				console.log("doubleClick");
+				this.doubleClick = true;
+
+
+				// console.log(e.detail.x, e.detail.y);
+				// this.heartLeft = e.detail.x - this.heartWidth/2;
+				// this.heartTop = e.detail.y;
+				// console.log(this.heartLeft+"  "+this.heartTop);
+				this.time = setTimeout(() => {
+					this.click = false;
+					this.doubleClick = false;
+				}, 300)
+				if (this.user == null) {
+					uni.showToast({
+						title: '请先登录',
+						icon: 'none'
+					});
+					uni.navigateTo({
+						url: '/pages/login/login'
+					})
+					return;
+				}
+				//点赞视频
+				api.videoLike({
+					vid: this.videoList[this.index].id,
+					type: 1,
+				}).then(res => {
+					if (res.data.code == 1) {
+						uni.showToast({
+							title: '请先登录',
+							icon: 'none'
+						});
+						return;
+					} else {
+						if (!this.videoList[this.index].check) {
+							this.videoList[this.index].skr_count = this.videoList[this.index].skr_count + 1;
+						}
+						this.videoList[this.index].check = true;
+
+
+					}
+				}).catch(res => {
+
+					// 失败进行的操作
+				})
+			}
+		},
+		computed: {
+			user() {
+				return this.$store.state.user;
+			}
+		},
+		watch: {
+			index(newVal, oldVal) {
+				this.oldIndex = oldVal
+			}
+		}
+	}
+</script>
+<style scoped>
+	/* #ifndef APP-PLUS */
+	page {
+		background: black;
+		width: 100%;
+		min-height: 100%;
+		display: flex;
+	}
+
+	.page {
+		width: 100%;
+		min-height: 100%;
+		display: flex;
+	}
+
+	/* #endif */
+	.hide {
+		display: none !important;
+	}
+
+	.loadmore {
+		text-align: center;
+	}
+
+	.heart {
+		position: absolute;
+		width: 750rpx;
+		text-align: center;
+		align-items: center;
+	}
+
+	.skr-img {
+
+		width: 150upx;
+		height: 130upx;
+	}
+
+	.right-follow {
+		position: absolute;
+		z-index: 100;
+		top: 70upx;
+		left: 30upx;
+		color: #FFFFFF;
+		font-size: 16px;
+		width: 34upx;
+		height: 34upx;
+		background-color: #F12F5B;
+		text-align: center;
+		line-height: 34upx;
+		border-radius: 17upx;
+	}
+	.right-follow-img{
+		position: absolute;
+		z-index: 100;
+		top: 70upx;
+		left: 30upx;
+		color: #FFFFFF;
+		font-size: 16px;
+		width: 34upx;
+		height: 34upx;
+		background-color: #D9D9D9;
+		text-align: center;
+		line-height: 34upx;
+		border-radius: 17upx;
+	}
+
+	.right-text {
+		color: #FFFFFF;
+		font-size: 11px;
+		text-align: center;
+		margin-bottom: 40upx;
+		margin-top: 5upx;
+	}
+
+	.right-iconfont {
+		color: #eee;
+		font-size: 32px;
+		text-align: center;
+	}
+
+	.swiper {
+		flex: 1;
+		background-color: #000;
+	}
+
+	.swiper-item {
+		position: relative;
+	}
+
+	.video {}
+
+	.video-box {
+		flex: 1;
+		width: 750upx;
+	}
+
+	.cover-view-center {
+		position: absolute;
+		justify-content: center;
+		align-items: center;
+		opacity: 0.1;
+		z-index: 999;
+	}
+
+	.cover-view-top {
+		justify-content: center;
+		height: 100upx;
+		position: absolute;
+		width: 750upx;
+		top: 48upx;
+		z-index: 9999;
+	}
+
+	.top-icon {
+		padding: 12upx;
+		width: 64upx;
+		height: 64upx;
+		position: absolute;
+	}
+
+	.left-close {
+		left: 24upx;
+		top: 24upx;
+	}
+
+	.right-search {
+		right: 128upx;
+		top: 24upx;
+	}
+
+	.right-more {
+		height: 30upx !important;
+		right: 24upx;
+		top: 40upx;
+	}
+
+	.cover-view-left {
+		position: absolute;
+		margin-left: 15upx;
+		width: 400upx;
+		z-index: 9999;
+		color: #FFFFFF;
+		//#ifndef APP-PLUS-NVUE
+		white-space: pre-wrap;
+		text-overflow: ellipsis;
+		overflow: hidden;
+		//#endif
+
+	}
+
+	.cover-view-comment {
+		flex-direction: row;
+		align-items: center;
+		line-height: 82upx;
+		padding-left: 24upx;
+		height: 82upx;
+		border-radius: 50%;
+		background-color: rgba(0, 0, 0, 0.5);
+		position: absolute;
+		left: 24upx;
+		right: 132upx;
+		z-index: 9999;
+		bottom: 36upx;
+		color: #FFFFFF;
+		//#ifndef APP-PLUS-NVUE
+		white-space: pre-wrap;
+		text-overflow: ellipsis;
+		overflow: hidden;
+		//#endif
+	}
+
+	.title {
+		bottom: 228upx;
+	}
+
+	.name {
+
+		bottom: 182upx;
+	}
+
+	.music {
+		font-size: 16upx;
+		bottom: 138upx;
+		flex-direction: row;
+	}
+
+	.left-music {
+		height: 36upx;
+		line-height: 36upx;
+		left: 4upx;
+		color: #FFFFFF;
+		font-size: 24upx;
+	}
+
+	.img-music {
+		margin-top: 5upx;
+		width: 20upx;
+		height: 26upx;
+	}
+
+	.left-comment {
+		line-height: 82upx;
+		height: 82upx;
+		padding-left: 10upx;
+		color: #FFFFFF;
+		font-size: 30upx;
+		color: rgba(255, 255, 255, 0.8);
+	}
+
+	.img-pen {
+		margin-left: 15upx;
+		margin-top: 5upx;
+		width: 30upx;
+		height: 26upx;
+	}
+
+
+
+	.left-text {
+		font-size: 36upx;
+		color: #FFFFFF;
+	}
+
+	.avater {
+		border-radius: 50%;
+		border-width: 2upx;
+		border-style: solid;
+		border-color: #FFFFFF;
+	}
+
+	.cover-view-right {
+		position: absolute;
+		bottom: 60upx;
+		margin-right: 20upx;
+		right: 10upx;
+		flex-direction: column;
+		z-index: 9999;
+		text-align: center;
+		padding: 0 4upx;
+		align-items: center;
+	}
+
+	.img-left {
+		width: 80upx;
+		height: 70upx;
+	}
+
+	.comment-img {
+		width: 80upx;
+		height: 80upx;
+	}
+
+	.img {
+		height: 90upx;
+		width: 90upx;
+		margin-bottom: 60upx;
+	}
+
+	.page {
+		flex: 1;
+	}
+
+
+
+	/* 可以设置不同的进入和离开动画 */
+	/* 设置持续时间和动画函数 */
+	/* // 进入的动画 opacity: 0=>1, translateX: 10=>0 */
+	.slide-fade-enter-active {
+		transition: opacity .3s ease;
+	}
+
+	/* // 离开的动画 opacity: 1=>0, translateX: 0=>10 */
+	.slide-fade-leave-active {
+		transition: opacity .8s ease
+	}
+
+	/* // 进入第一帧和离开最后一帧的状态 */
+	.slide-fade-enter {
+		transform: scale(0.5);
+		opacity: 0;
+	}
+
+	.slide-fade-leave-to {
+		transform: scale(1);
+		opacity: 0;
+	}
+</style>

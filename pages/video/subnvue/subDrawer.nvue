@@ -1,0 +1,467 @@
+<template>
+	<div class="wrapper">
+		<div class="top" @click="hideDrawer()"></div>
+		<div class="buttom">
+			<cover-view class="buttom-title-wrapper">
+				<text class="bottom-title">评论详情</text>
+				<image class="right-down-img" src="/static/icon/down.png" @tap="hideDrawer" mode="aspectFit"></image>
+			</cover-view>
+			
+
+			<view class="commentList" >
+				
+				<scroll-view scroll-y="true" class="scroller-view">
+					
+					<view class="item-wrapper">
+						<view class="content-item flext-row">
+							<view class="comment-head-img-wrapper">
+								<image class="comment-head-img" :src="formatUrl(item.head_img)"></image>
+							</view>
+							<view class="content-wrapper flext-column">
+								<text class="comment-name">{{item.name}}</text>
+								<cover-view class="content-text-wrapper">
+									<text class="content-text">{{item.content}}</text>
+								</cover-view>
+								<view class="comment-sub-label flext-row">
+									<text class="comment-time">{{item.create_time}}</text>
+								</view>
+							</view>
+							<view class="flext-row comment-skr-wrapper" @click="tapLove1(item)">
+								<image class="comment-skr-img" :src="item.skr==0?'/static/icon/skr_black.png':'/static/icon/skr_red.png'"></image>
+								<text class="skr-count">{{item.skr_count}}</text>
+							</view>
+						
+						</view>
+						<view class="no-comment" v-if="commentList.length==0">
+							<text class="no-comment-text"></text>
+						</view>
+						<view v-if="commentList.length>0" class="comment-item flext-row" v-for="(item,idx) in commentList" :key="idx" >
+							<view class="comment-head-img-wrapper" >
+								<image class="comment-head-img" :src="formatUrl(item.head_img)"></image>
+							</view>
+							<view class="comment-content-wrapper flext-column" @tap="clickitem(item)">
+								<text class="comment-name">{{item.name}}</text>
+								<text class="comment-content">{{item.content}}</text>
+								<view class="comment-sub-label flext-row">
+									<text class="comment-time">09-29 9:09</text>
+									<text class="comment-sub-count">{{item.sub_comment.length==0?'0':item.sub_comment.length}}回复</text>
+								</view>
+							</view>
+							<view class="flext-row comment-skr-wrapper" @click="tapLove(idx)">
+								<image class="comment-skr-img" :src="item.skr==0?'/static/icon/skr_black.png':'/static/icon/skr_red.png'"></image>
+								<text class="skr-count">{{item.skr_count}}</text>
+							</view>
+						</view>
+						<view class="no-comment" v-if="!isMore">
+							<text class="no-comment-text">暂无更多评论</text>
+						</view>
+					</view>
+				</scroll-view>
+			</view>
+			<!-- 下方评论区域 -->
+			<view class="comment-wrapper">
+
+
+				<cover-view class="cover-view-comment">
+					<view class="img-pen-wrapper">
+						<cover-image src="/static/icon/comment.png" class="img-pen"></cover-image>
+					</view>
+					<input v-model="content" cursor-spacing="20" confirm-type="send" @confirm="sendMsg" placeholder-style="color:rgba(0,0,0,.2)"
+					 class="left-comment" :focus="input" type="text" placeholder="写评论..." />
+				</cover-view>
+			</view>
+		</div>
+	</div>
+</template>
+
+<script>
+	import api from '../../../api/index.js';
+	export default {
+		data() {
+			return {
+				vid: 0,
+				input: false,
+				content:"",
+				page:1,
+				isMore:true,
+				commentList: [],
+				item: {}
+			}
+		},
+		beforeCreate() {},
+		created() {},
+		onLoad(e) {
+			uni.$on('subDrawerShow', (data) => {
+				this.vid = data.vid;
+				this.item = data.item;
+			})
+			uni.$on('setSubCommentData', (data) => {
+				this.setCommentData(data.data);
+			})
+		},
+		onShow() {},
+		mounted() {},
+		onUnload() {
+			uni.$off('subDrawerShow');
+			uni.$off('setSubCommentData');
+		},
+		methods: {
+			loadMore(){
+				if(!this.isMore){
+					return;
+				}
+				api.commentList({vid:this.vid,page:++this.page}).then((res)=>{
+					if(res.data.code==0){
+						for(let item of res.data.data){
+							this.commentList.push(item);
+						}
+					}else{
+						this.isMore = false;
+					}
+				})
+			},
+			tapLove1(item) {
+				
+				api.commentLike({
+					vid: this.vid,
+					cid: this.item.id,
+					type: 0,
+					skr:(this.item.skr==0?1:0)
+				}).then((res) => {
+					if (res.data.code == 0) {
+						this.item.skr_count=this.item.skr==0?this.item.skr_count+1:this.item.skr_count-1;
+						this.item.skr=this.item.skr==0?1:0;
+					}
+			
+				}).catch((res) => {
+			
+				})
+			},
+			tapLove(index) {
+				
+				api.commentLike({
+					vid: this.vid,
+					cid: this.commentList[index].id,
+					type: 0,
+					skr:(this.commentList[index].skr==0?1:0)
+				}).then((res) => {
+					if (res.data.code == 0) {
+						this.commentList[index].skr_count=this.commentList[index].skr==0?this.commentList[index].skr_count+1:this.commentList[index].skr_count-1;
+						this.commentList[index].skr=this.commentList[index].skr==0?1:0;
+					}
+			
+				}).catch((res) => {
+			
+				})
+			},
+			sendMsg(event) {
+				//输入的值
+				var inputValue = this.content;
+				this.content = "";
+				api.commentSend({
+					vid: this.vid,
+					content: inputValue,
+					pid: this.item.id
+				}).then((res) => {
+					console.log(this.commentList.length);
+					if (res.data.code == 0) {
+						var data = res.data.data;
+						data.head_img = this.user.head_img;
+						data.name = this.user.name;
+						data.skr_count = 0;
+						data.sub_comment = [];
+						this.commentList.unshift(data);
+					}
+					console.log(this.commentList.length);
+					console.log(res.data);
+			
+				}).catch((res) => {
+			
+				})
+			},
+			setCommentData(data) {
+				this.commentList = data;
+				if(this.commentList.length<10){
+					this.isMore=false;
+				}
+			},
+			hideDrawer() {
+				this.isMore=true;
+				this.page=1;
+				uni.getCurrentSubNVue().hide('slide-out-bottom')
+				uni.hideKeyboard()
+				//uni.getSubNVueById('drawer').show('slide-in-bottom', 200, () => {});
+			},
+			clickitem(item) {
+				uni.$emit('subDrawerShow', {
+					vid: this.vid,
+					item: item
+				})
+				//console.log(item.sub_comment);
+				uni.$emit('setSubCommentData', {
+					data: item.sub_comment
+				});
+				uni.getSubNVueById('subdrawer').show('slide-in-bottom', 200, () => {});
+
+			},
+			formatUrl(url) {
+				if(url==undefined){
+					return "";
+				}
+				var index = url.indexOf("http");
+				if (index == 0) {
+					//console.log(url);
+					return url;
+				}
+				return this.$store.state.baseUrl + url;
+			},
+		}
+		,computed:{
+		user(){
+			return this.$store.state.user;
+		}
+	}
+	}
+</script>
+
+<style lang="scss">
+	.wrapper {
+		flex-direction: column;
+		flex: 1;
+		text-align: center;
+		background-color: transparent;
+		height: 431upx;
+	}
+
+	.top {
+			background-color: rgba(0,0,0,0);
+		flex: 4.3;
+	}
+
+	.buttom {
+		box-shadow: 0 -6upx 12upx rgba($color: #000000, $alpha: .2);
+		background-color: #fff;
+		flex: 7.7;
+		border-top-left-radius: 10px;
+		border-top-right-radius: 10px;
+	}
+
+	.buttom-title-wrapper {
+		flex: 1.2;
+		justify-content: center;
+		border-bottom-color: rgba($color: #000000, $alpha: 0.2);
+		border-bottom-width: 1upx;
+		border-style: solid;
+
+	}
+
+	.bottom-title {
+		text-align: center;
+		font-size: 30upx;
+		color: #000;
+	}
+
+	.right-down-img {
+		width: 30upx;
+		height: 20upx;
+		position: absolute;
+		right: 40upx;
+	}
+
+	.scroller-view {
+		flex: 1;
+	}
+
+	.no-comment {
+		text-align: center;
+		flex: 12;
+		height: 100%;
+		flex-direction: column;
+		justify-content: center;
+		align-items: center;
+		align-content: center;
+
+	}
+
+	.no-comment-text {
+		color: rgba($color: #000000, $alpha: .6);
+		font-size: 24upx;
+	}
+
+	.flext-column {
+		flex-direction: column;
+	}
+
+	.item-wrapper {}
+
+	.flext-row {
+		flex-direction: row;
+	}
+
+	.content-item {
+		border-bottom-color: rgba($color: #000000, $alpha: 0.2);
+		border-bottom-width: 1upx;
+		border-style: solid;
+		margin-top: 2upx;
+		margin-bottom: 0upx;
+		flex-wrap: nowrap;
+		justify-content: center;
+	}
+
+	.content-wrapper {
+		padding-left: 20upx;
+		flex: 10;
+	}
+
+	.content-text-wrapper {
+		height: 100%;
+		margin-top: 30upx;
+		padding-bottom: 240upx;
+	}
+
+	.content-text {
+		
+		flex-wrap: wrap;
+		font-size: 30upx;
+		color: rgba($color: #000000, $alpha: 0.8);
+	}
+
+	.commentList {
+		flex: 8.5;
+	}
+
+	.comment-item {
+		flex: 1;
+		margin-top: 2upx;
+		height: 210upx;
+		margin-bottom: 0upx;
+		flex-wrap: nowrap;
+		justify-content: center;
+	}
+
+	.comment-head-img-wrapper {
+		margin-left: 24upx;
+		flex-direction: row;
+	}
+
+	.comment-head-img {
+		margin-top: 20upx;
+		border-radius: 50%;
+		width: 80upx;
+		height: 80upx;
+		align-items: center;
+		flex: 2;
+	}
+
+	.comment-content-wrapper {
+		height: 210upx;
+		padding-left: 20upx;
+		flex: 10;
+	}
+
+	.comment-name {
+		font-size: 30upx;
+		font-weight: 700;
+		padding-top: 24upx;
+	}
+	.comment-content {
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		lines: 1;
+		font-size: 30upx;
+		padding-top: 30upx;
+		color: rgba($color: #000000, $alpha: 0.8);
+	}
+
+	.comment-sub-label {
+		height: 60upx;
+		align-items: center;
+		padding-top: 24upx;
+	}
+
+	.comment-time {
+		color: rgba($color: #000000, $alpha: 0.5);
+		font-size: 20upx;
+	}
+
+	.comment-sub-count {
+		color: rgba($color: #000000, $alpha: 0.5);
+		padding: 5upx 16upx;
+		border-radius: 50%;
+		background-color: rgba(0, 0, 0, 0.05);
+		margin-left: 24upx;
+		font-size: 20upx;
+	}
+
+	.comment-skr-wrapper {
+		justify-content: center;
+
+		padding-left: 20upx;
+		flex: 2;
+	}
+
+	.comment-skr-img {
+		margin-top: 20upx;
+		width: 32upx;
+		height: 32upx;
+	}
+
+	.skr-count {
+		margin-top: 20upx;
+		color: rgba($color: #000000, $alpha: 0.5);
+		margin-left: 12upx;
+		font-size: 24upx;
+	}
+
+	.comment-wrapper {
+		flex: 2;
+		height: 82upx;
+		flex-direction: row;
+		align-items: center;
+		background-color: #fff;
+	}
+
+	.cover-view-comment {
+		flex-direction: row;
+		align-items: center;
+		line-height: 82upx;
+		padding-left: 24upx;
+		height: 82upx;
+		border-radius: 50%;
+		background-color: rgba(0, 0, 0, 0.05);
+		position: absolute;
+		left: 24upx;
+		right: 24upx;
+		z-index: 9999;
+		bottom: 36upx;
+		color: #FFFFFF;
+		//#ifndef APP-PLUS-NVUE
+		white-space: pre-wrap;
+		text-overflow: ellipsis;
+		overflow: hidden;
+		//#endif
+	}
+
+	.img-pen-wrapper {
+		flex: 1;
+		margin-left: 15upx;
+		margin-top: 5upx;
+	}
+
+	.img-pen {
+		width: 30upx;
+		height: 26upx;
+	}
+
+	.left-comment {
+		margin-right: 24upx;
+		flex: 11;
+		width: 100%;
+		height: 62upx;
+		line-height: 62upx;
+		margin-left: 12upx;
+		font-size: 30upx;
+		color: rgba($color: #000000, $alpha: .8);
+	}
+</style>

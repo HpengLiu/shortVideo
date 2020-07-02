@@ -1,0 +1,268 @@
+<template>
+	<view class="wrapper">
+		<view class="top" @click="hideDrawer()"></view>
+		<view class="buttom">
+			<view class="li share-wrapper">
+				<scroll-view class="scroll-view_H" scroll-x="true" @scroll="scroll" scroll-left="0">
+					<view class="scroll-view-item_H " v-for="(item,index) in fenxiang" :key="index" @tap="share(item)">
+						<image class="view-item_H_image" :src="item.src"></image>
+						<text class="view-item_H_text">{{item.name}}</text>
+					</view>
+				</scroll-view>
+			</view>
+			<view class="li cache-wrapper" @tap="hideDrawer()">
+				<view class="cancel-btn-wrapper">
+					<text>取消</text>
+				</view>
+			</view>
+		</view>
+		<canvas id="canvas" ref='canvas'></canvas>
+	</view>
+</template>
+
+<script>
+	import api from '../../../api/index.js';
+	export default {
+		data() {
+			return {
+				fenxiang: [{
+						id: "weixin",
+						provider: "weixin",
+						scene: "WXSceneSession",
+						type: 4,
+						src: '/static/img/fenxiang1.png',
+						name: '微信',
+
+					}, {
+						id: "weixin",
+						provider: "weixin",
+						scene: "WXSenceTimeline",
+						type: 4,
+						src: '/static/img/fenxiang2.png',
+						name: '朋友圈',
+					},
+
+					{
+						id: "download",
+						src: '/static/img/xiazai.png',
+						name: '下载'
+					},
+				],
+				item: {},
+				videoSize: '',
+				jd: 0,
+				dtask: null
+			}
+		},
+		beforeCreate() {},
+		onLoad() {
+			uni.$on('setShareVideo', (res) => {
+				console.log("setShareVideo", res);
+				this.item = res;
+			})
+		},
+		created() {
+
+		},
+		methods: {
+			hideDrawer() {
+				uni.getCurrentSubNVue().hide('auto')
+			},
+			formatUrl(url) {
+				if (url == undefined) {
+					return;
+				}
+				var index = url.indexOf("http");
+				if (index == 0) {
+
+					return url;
+
+				}
+				return this.$store.state.baseUrl + url;
+			},
+			share(item) {
+				this.hideDrawer()
+				if (item.id == 'download') {
+					uni.$emit('openDownloading')
+					try {
+						var timer = setInterval(() => {
+							uni.$emit('curerntDownloadJD', this.jd)
+						}, 500)
+						console.log('下载')
+
+						this.dtask = plus.downloader.createDownload(this.item.src, {
+							filename: '_downloads/' + this.item.content + '.mp4'
+						}, function(d, status) {
+
+							if (status == 200) {
+								uni.$emit('closeDownloading')
+								clearInterval(timer)
+								this.jd = 0
+								console.log('下载成功' + d.filename)
+
+								uni.showLoading({
+									title: '保存中'
+								})
+								plus.gallery.save(d.filename, () => {
+									console.log('已保存')
+									uni.showToast({
+										title: '已保存到图库'
+									})
+								}, () => {
+									uni.showToast({
+										title: '保存失败'
+									})
+								})
+							} else {
+								uni.showToast({
+									title: '下载失败,请检查你的网络重试'
+								})
+							}
+
+						})
+
+						this.dtask.start()
+						// 监听下载
+						this.listenDownload()
+					} catch (e) {
+						console.log(e)
+						uni.$emit('closeDownloading')
+						uni.showToast({
+							icon: 'none',
+							title: '请重试！'
+						})
+					}
+
+					return;
+				}else{
+					var shareObj = {
+						provider: item.provider,
+						scene: item.scene,
+						type: 2,
+						title: this.item.content,
+						imageUrl: this.item.img,
+					}
+				
+					uni.navigateTo({
+						url:'/pages/video/share/share',
+						fail: (res) => { 
+							console.log(res)
+						},
+						success: (res) => {
+								uni.$emit('postShareWhere',shareObj)
+							console.log(res)
+						}
+					})
+				}
+				
+			
+			
+			
+
+
+			},
+			//监听下载
+			listenDownload() {
+				this.dtask.addEventListener('statechanged', (download, status) => {
+					if (download.state == 3 && status == 200) {
+						// 下载完成 
+						this.jd = parseInt(download.downloadedSize / download.totalSize * 100)
+					}
+				})
+			},
+			scroll(e) {}
+		},
+		mounted() {
+
+		}
+
+
+	}
+</script>
+
+<style scoped>
+	.wrapper {
+		flex-direction: column;
+		flex: 1;
+		text-align: center;
+		background-color: transparent;
+	}
+
+	.top {
+		background-color: rgba(0, 0, 0, 0);
+
+		flex: 9;
+	}
+
+	.buttom {
+
+		flex: 3;
+		padding-bottom: 24upx;
+	}
+
+	.share-wrapper {
+		flex: 8;
+	}
+
+	.cancel-wrapper {
+		flex: 3;
+	}
+
+	.li {
+		margin: 12upx;
+		background-color: #fff;
+		border-radius: 10px;
+	}
+
+	.bottom-title {
+		flex: 1;
+		height: 30px;
+		line-height: 30px;
+		text-align: center;
+		font-size: 14px;
+		font-weight: bold;
+	}
+
+	.scroll-view_H {
+		flex: 1;
+		flex-direction: row;
+		justify-content: space-between;
+		padding: 10px;
+	}
+
+	.scroll-view-item_H {
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		align-content: center;
+		align-items: center;
+		flex: 1;
+		padding: 5px 10px;
+		text-align: center;
+	}
+
+	.view-item_H_image {
+		width: 90upx;
+		height: 90upx;
+		/* border-radius: 50%; */
+	}
+
+	.view-item_H_text {
+		margin-top: 12upx;
+		font-size: 24upx;
+		text-align: center;
+	}
+
+	.cancel-btn-wrapper {
+		margin-top: 24upx;
+
+		padding: 12upx 0upx;
+		display: flex;
+		flex-direction: row;
+		justify-content: center;
+		text-align: center;
+		align-content: center;
+		align-items: center;
+		color: rgba(0, 0, 0, .3);
+	}
+</style>

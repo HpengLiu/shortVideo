@@ -1,0 +1,78 @@
+{
+	"pages": [ //pages数组中第一项表示应用启动页，参考：https://uniapp.dcloud.io/collocation/pages
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTextStyle": "black",
+				"app-plus": {
+					"animationType": "fade-in"
+				}
+			}
+
+		},
+
+		{
+			"path": "pages/video/index",
+			"style": {
+				"navigationStyle": "custom",
+				"app-plus": {
+					"softinputMode": "adjustResize",
+					"subNVues": [{
+							"id": "drawer",
+							"path": "pages/video/subnvue/drawer",
+							"type": "popup",
+							"style": {
+								"height": "100%",
+								"position": "fiexd",
+								"bottom": "0",
+								"background": "transparent"
+							}
+						}, {
+							"id": "subdrawer",
+							"path": "pages/video/subnvue/subDrawer",
+							"type": "popup",
+							"style": {
+								"height": "100%",
+								"position": "absolute",
+								"bottom": "0",
+								"background": "transparent"
+							}
+						}, {
+							"id": "forward",
+							"path": "pages/video/subnvue/forward",
+							"type": "popup",
+							"style": {
+								"height": "100%",
+								"position": "absolute",
+								"bottom": "0",
+								"background": "transparent"
+							}
+						}
+
+					]
+				}
+			}
+
+		}
+
+		, {
+			"path": "pages/video/share/share",
+			"style": {}
+		}
+	],
+	"globalStyle": {
+		"navigationStyle": "custom",
+		"onReachBottomDistance": 50,
+		"app-plus": {
+			"animationType": "pop-in"
+		}
+	},
+	"condition": { //模式配置，仅开发期间生效
+		"current": 0, //当前激活的模式(list 的索引项)
+		"list": [{
+			"name": "", //模式名称
+			"path": "", //启动页面，必选
+			"query": "" //启动参数，在页面的onLoad函数里面得到
+		}]
+	}
+}
